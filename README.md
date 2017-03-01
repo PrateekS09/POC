@@ -1,6 +1,8 @@
 siexamplehttpinboundoutbound is a Spring Integration Example having various Spring Integration components
-to run the project
-1. Download or clone
+
+-----------------------------------
+To run the project
+1. Click on Download or clone
 2. Import the project
 3. Deploy using tomcat 
 4. run the webservice using url 
