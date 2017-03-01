@@ -1,0 +1,86 @@
+<beans:beans xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns="http://www.springframework.org/schema/integration" xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:int-xml="http://www.springframework.org/schema/integration/xml"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http"
+	xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+             http://www.springframework.org/schema/beans/spring-beans.xsd
+             http://www.springframework.org/schema/context 
+             http://www.springframework.org/schema/context/spring-context.xsd
+             http://www.springframework.org/schema/integration 
+             http://www.springframework.org/schema/integration/spring-integration.xsd
+             http://www.springframework.org/schema/integration/xml 
+             http://www.springframework.org/schema/integration/xml/spring-integration-xml.xsd
+             http://www.springframework.org/schema/integration/http 
+             http://www.springframework.org/schema/integration/http/spring-integration-http.xsd
+             http://www.springframework.org/schema/integration/stream 
+             http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd">
+
+
+	<!-- Component scan to find all Spring components -->
+	<context:component-scan base-package="org.poc" />
+
+	<!-- Enables Message History -->
+	<int:message-history />
+
+	<!-- A Spring Integration Direct channel -->
+	<int:channel id="gatewayResponseChannel1" />
+	<int:channel id="stdoutChannel" />
+
+	<!-- Wire Tap, This is an interceptor and its used to intercept a channel -->
+	<int:channel id="gatewayRequestChannel1">
+		<int:interceptors>
+			<int:wire-tap channel="stdoutChannel" />
+		</int:interceptors>
+	</int:channel>
+
+	<!-- This Component is used to print the message paylod on the Console -->
+	<int-stream:stdout-channel-adapter
+		channel="stdoutChannel" append-newline="true">
+	</int-stream:stdout-channel-adapter>
+
+
+	<!-- Invoking webservice here. -->
+	<int-http:inbound-gateway id="inboundGatewayId"
+		request-channel="gatewayRequestChannel1" reply-channel="gatewayResponseChannel1"
+		supported-methods="POST" path="demoEmpService1" reply-timeout="5000">
+		<int-http:request-mapping consumes="application/json"
+			produces="application/json" />
+	</int-http:inbound-gateway>
+
+	<!-- Publish Subscribe Channel -->
+	<int:channel id="jsonOutChannel1" />
+
+	<int:json-to-object-transformer
+		input-channel="gatewayRequestChannel1" output-channel="jsonOutChannel1"
+		type="org.poc.model.CustomerOrder">
+	</int:json-to-object-transformer>
+
+	<!-- Out Channel for Service Activator -->
+	<channel id="serviceActOutChannel1" />
+
+	<int:service-activator input-channel="jsonOutChannel1"
+		output-channel="serviceActOutChannel1" ref="burgerOutImpl" method="createOrder">
+	</int:service-activator>
+
+	<!-- Service Activator using SPEL -->
+	<!-- <int:service-activator input-channel="jsonOutPubSubChannel" output-channel="burgerOutChannel" 
+		expression="@burgerOutImpl.createOrder(payload, headers.prop)"/> -->
+		
+		<channel id="headerEnricherOutChannel" />
+
+	<!-- Header Enricher to add Header values in the Message Header -->
+	<int:header-enricher input-channel="serviceActOutChannel1"
+		output-channel="headerEnricherOutChannel">
+		<int:header name="prop" value="Hi This is Value" />
+	</int:header-enricher>
+	
+	<!-- This trnsformer is used to convert response Object to List -->
+	<int:transformer input-channel="headerEnricherOutChannel"
+		output-channel="gatewayResponseChannel1" method="testData" ref="testTransformer">
+	</int:transformer>
+
+</beans:beans>

@@ -1,0 +1,108 @@
+<beans:beans xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns="http://www.springframework.org/schema/integration" xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:int-xml="http://www.springframework.org/schema/integration/xml"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http"
+	xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+             http://www.springframework.org/schema/beans/spring-beans.xsd
+             http://www.springframework.org/schema/context 
+             http://www.springframework.org/schema/context/spring-context.xsd
+             http://www.springframework.org/schema/integration 
+             http://www.springframework.org/schema/integration/spring-integration.xsd
+             http://www.springframework.org/schema/integration/xml 
+             http://www.springframework.org/schema/integration/xml/spring-integration-xml.xsd
+             http://www.springframework.org/schema/integration/http 
+             http://www.springframework.org/schema/integration/http/spring-integration-http.xsd
+             http://www.springframework.org/schema/integration/stream 
+             http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd">
+
+
+	<!-- Component scan to find all Spring components -->
+	<context:component-scan base-package="org.poc" />
+	
+	
+
+	<!-- A Spring Integration Direct channel -->
+	<channel id="gatewayInboundResponseChannel" />
+	<int:channel id="stdoutChannel"/> 
+	
+	<int:channel id="gatewayInboundRequestChannel"> 
+      <int:interceptors> 
+           <int:wire-tap channel="stdoutChannel"/> 
+     </int:interceptors> 
+   </int:channel>  
+   
+  <int-stream:stdout-channel-adapter
+   channel="stdoutChannel"
+   append-newline="true">
+   </int-stream:stdout-channel-adapter> 
+
+
+	<int-http:inbound-gateway id="inboundGatewayId"
+		request-channel="gatewayInboundRequestChannel" reply-channel="gatewayInboundResponseChannel"
+		supported-methods="POST" path="testInboundService" 
+		reply-timeout="5000">
+		<int-http:request-mapping consumes="application/xml"
+			produces="application/xml" />
+	</int-http:inbound-gateway>
+
+	<!-- Publish Subscribe Channel -->
+	<int:publish-subscribe-channel id="jsonOutPubSubChannel" />
+
+	<int:json-to-object-transformer
+		input-channel="gatewayInboundRequestChannel" output-channel="jsonOutPubSubChannel"
+		type="org.poc.model.CustomerOrder">
+	</int:json-to-object-transformer>
+
+
+	<channel id="burgerOutChannel" />
+
+	<int:service-activator input-channel="jsonOutPubSubChannel"
+		output-channel="burgerOutChannel" ref="burgerOutImpl" method="createOrder">
+	</int:service-activator>
+	
+	<!--  Service Activator using SPEL -->
+	<!-- <int:service-activator input-channel="jsonOutPubSubChannel" output-channel="burgerOutChannel"
+	expression="@burgerOutImpl.createOrder(payload, headers.prop)"/> -->
+	
+	<int:header-enricher input-channel="burgerOutChannel"
+		output-channel="aggregatorInChannel">
+		<int:header name="prop" value="prop" />
+	</int:header-enricher>
+
+	<int:channel id="drinkOutChannel" />
+
+	<int:transformer input-channel="jsonOutPubSubChannel"
+		output-channel="drinkOutChannel" ref="drinkOutImpl">
+	</int:transformer>
+
+	<int:header-enricher input-channel="drinkOutChannel"
+		output-channel="aggregatorInChannel">
+		<int:header name="prop" value="prop" />
+	</int:header-enricher>
+
+	<int:channel id="aggregatorOutChannel" />
+	<int:channel id="aggregatorInChannel" />
+
+	<int:aggregator release-strategy-expression="size() == 2"
+		input-channel="aggregatorInChannel" output-channel="aggregatorOutChannel"
+		correlation-strategy-expression="headers['prop']"
+		expire-groups-upon-completion="true">
+	</int:aggregator>
+
+
+	<int:transformer input-channel="aggregatorOutChannel"
+		output-channel="gatewayInboundResponseChannel" method="testData" ref="testTransformer">
+	</int:transformer>
+	
+	<int:channel id="aggregatorOutChannel" 
+	datatype="" 
+    fixed-subscriber="false" 
+    message-converter="" 
+    scope=""/>
+
+
+</beans:beans>

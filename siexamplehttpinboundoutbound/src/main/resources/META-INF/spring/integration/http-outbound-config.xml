@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:int-xml="http://www.springframework.org/schema/integration/xml"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                                 http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                                 http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd">
+
+	<context:component-scan base-package="org.poc" />
+
+	<int:gateway id="outboundRequestGateway"
+		service-interface="com.cpandey.siexample.OutboundRequestGateway"
+		default-request-channel="outboundRequestChannel" />
+
+	<int:channel id="outboundRequestChannel" />
+
+	<int-http:outbound-gateway request-channel="outboundRequestChannel"
+		url="/receiveGateway" http-method="GET" expected-response-type="java.lang.String" />
+
+
+	<int:channel id="gatewayRequestChannel" />
+	<int:channel id="gatewayResponseChannel" />
+
+	<int-http:inbound-gateway id="inboundGatewayId"
+		request-channel="gatewayRequestChannel" reply-channel="gatewayResponseChannel"
+		supported-methods="GET" path="/demoEmpService" request-payload-type="java.lang.String"
+		reply-timeout="5000">
+		<int-http:request-mapping consumes="application/json"
+			produces="application/json" />
+	</int-http:inbound-gateway>
+
+	<int:transformer input-channel="gatewayRequestChannel"
+		output-channel="gatewayResponseChannel" method="testTransformer.testData()">
+
+	</int:transformer>
+
+</beans>
